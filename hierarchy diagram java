@@ -1,5 +1,0 @@
-                  Transportation
-        /               |                 \
-   AirTransport    LandTransport    WaterTransport
-   /       \        /   |   |   \       /        \
-Plane    Helicopter Truck SUV Tricycle Motorcycle Kariton  Boat  Ship
