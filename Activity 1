@@ -1,0 +1,398 @@
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+
+public class ArithmeticGame extends JFrame {
+    // Mga UI field nga magpakita sa numero ug modawat sa tubag
+    private JTextField num1Field, num2Field, answerField;
+    // Mga label para sa estado sa dula sama sa correct/incorrect ug level
+    private JLabel operatorLabel, correctLabel, incorrectLabel, levelLabel, statusLabel;
+    // Lista sa operator buttons aron ma-highlight ang napili
+    private final List<JButton> operatorButtons = new ArrayList<>();
+
+    // Score ug state sa level
+    private int correct = 0;
+    private int incorrect = 0;
+    private int currentLevel = 1;
+    private int currentNum1, currentNum2, currentAnswer;
+    private OperatorType currentOperator = OperatorType.ADD;
+
+    private final Random random = new Random();
+
+    // Enum sa mga operator nga magdesisyon unsaon paghimo sa pangutana
+    private enum OperatorType {
+        ADD("+") {
+            @Override
+            Question createQuestion(Random random, int level) {
+                int max = Math.min(12 + level / 5, 25);
+                int a = random.nextInt(max) + 1;
+                int b = random.nextInt(max) + 1;
+                return new Question(a, b, a + b);
+            }
+        },
+        SUBTRACT("-") {
+            @Override
+            Question createQuestion(Random random, int level) {
+                int max = Math.min(12 + level / 5, 25);
+                int a = random.nextInt(max) + 1;
+                int b = random.nextInt(max) + 1;
+                if (a < b) {
+                    int temp = a;
+                    a = b;
+                    b = temp;
+                }
+                return new Question(a, b, a - b);
+            }
+        },
+        MULTIPLY("×") {
+            @Override
+            Question createQuestion(Random random, int level) {
+                int max = Math.min(12 + level / 5, 25);
+                int a = random.nextInt(max) + 1;
+                int b = random.nextInt(max) + 1;
+                return new Question(a, b, a * b);
+            }
+        },
+        DIVIDE("÷") {
+            @Override
+            Question createQuestion(Random random, int level) {
+                int max = Math.min(12 + level / 5, 25);
+                int divisor = random.nextInt(max) + 1;
+                int quotient = random.nextInt(max) + 1;
+                int dividend = divisor * quotient;
+                return new Question(dividend, divisor, quotient);
+            }
+        };
+
+        private final String symbol;
+
+        OperatorType(String symbol) {
+            this.symbol = symbol;
+        }
+
+        public String symbol() {
+            return symbol;
+        }
+
+        abstract Question createQuestion(Random random, int level);
+
+        private static int maxOperand(int level) {
+            if (level <= 20) return 20;
+            if (level <= 50) return 50;
+            return 100;
+        }
+    }
+
+    // Simple nga data holder para sa operands ug tamang tubag
+    private static class Question {
+        final int operand1;
+        final int operand2;
+        final int answer;
+
+        Question(int operand1, int operand2, int answer) {
+            this.operand1 = operand1;
+            this.operand2 = operand2;
+            this.answer = answer;
+        }
+    }
+
+    // Constructor nga mosetup sa window ug simple layout
+    public ArithmeticGame() {
+        setTitle("Arithmetic Game");
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
+        int width = (int) (screen.width * 0.75);
+        int height = (int) (screen.height * 0.85);
+        setSize(width, height);
+        setLocationRelativeTo(null);
+
+        setContentPane(buildRoot());
+
+        generateQuestion();
+    }
+
+    // Root container nga naay padding ug puti nga background
+    private JPanel buildRoot() {
+        JPanel root = new JPanel(new BorderLayout());
+        root.setBorder(BorderFactory.createEmptyBorder(16, 16, 16, 16));
+        root.setBackground(Color.WHITE);
+        root.add(buildMainPanel(), BorderLayout.CENTER);
+        return root;
+    }
+
+    // Pangunahing layout nga nagsunod sa karaan nga seksyonal nga porma
+    private JPanel buildMainPanel() {
+        JPanel main = new JPanel();
+        main.setBackground(Color.WHITE);
+        main.setLayout(new BoxLayout(main, BoxLayout.Y_AXIS));
+
+        main.add(buildTitlePanel());
+        main.add(Box.createVerticalStrut(12));
+        main.add(buildDisplayPanel());
+        main.add(Box.createVerticalStrut(12));
+        main.add(buildLevelPanel());
+        main.add(Box.createVerticalStrut(12));
+        main.add(buildScorePanel());
+        main.add(Box.createVerticalStrut(12));
+        main.add(buildOperatorPanel());
+        main.add(Box.createVerticalStrut(12));
+        main.add(buildSubmitPanel());
+        main.add(Box.createVerticalStrut(12));
+        main.add(buildInfoPanel());
+
+        return main;
+    }
+
+    // Title area
+    private JComponent buildTitlePanel() {
+        JLabel title = new JLabel("ARITHMETIC GAME", SwingConstants.CENTER);
+        title.setFont(title.getFont().deriveFont(Font.BOLD, 18f));
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(Color.WHITE);
+        panel.add(title, BorderLayout.CENTER);
+        return panel;
+    }
+
+    // Display row: num1 op num2 = answer
+    private JComponent buildDisplayPanel() {
+        JPanel display = new JPanel(new FlowLayout(FlowLayout.CENTER, 12, 8));
+        display.setBackground(Color.WHITE);
+
+        num1Field = createNumberField(false);
+        num2Field = createNumberField(false);
+        answerField = createNumberField(true);
+        answerField.addActionListener(this::handleSubmit);
+
+        operatorLabel = new JLabel(currentOperator.symbol(), SwingConstants.CENTER);
+        operatorLabel.setFont(operatorLabel.getFont().deriveFont(Font.BOLD, 28f));
+
+        JLabel equalsLabel = new JLabel("=", SwingConstants.CENTER);
+        equalsLabel.setFont(equalsLabel.getFont().deriveFont(Font.BOLD, 28f));
+
+        display.add(num1Field);
+        display.add(operatorLabel);
+        display.add(num2Field);
+        display.add(equalsLabel);
+        display.add(answerField);
+
+        return display;
+    }
+
+    // Level panel nga simple text
+    private JComponent buildLevelPanel() {
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 4));
+        panel.setBackground(Color.WHITE);
+        levelLabel = new JLabel("Level 1");
+        levelLabel.setFont(levelLabel.getFont().deriveFont(Font.BOLD, 20f));
+        panel.add(levelLabel);
+        return panel;
+    }
+
+    // Score area nga duha ka card
+    private JComponent buildScorePanel() {
+        JPanel scoreRow = new JPanel(new GridLayout(1, 2, 12, 0));
+        scoreRow.setBackground(Color.WHITE);
+        correctLabel = createScoreLabel("Sakto: 0", new Color(0, 128, 0));
+        incorrectLabel = createScoreLabel("Sayop: 0", new Color(180, 0, 0));
+        scoreRow.add(wrapScoreCard("Correct", correctLabel));
+        scoreRow.add(wrapScoreCard("Wrong", incorrectLabel));
+        return scoreRow;
+    }
+
+    // Operator buttons nga pareho sa daang porma
+    private JComponent buildOperatorPanel() {
+        JPanel ops = new JPanel(new GridLayout(1, 4, 8, 0));
+        ops.setBackground(Color.WHITE);
+
+        ops.add(createOperatorButton("Add (+)", OperatorType.ADD));
+        ops.add(createOperatorButton("Subtract (-)", OperatorType.SUBTRACT));
+        ops.add(createOperatorButton("Multiply (×)", OperatorType.MULTIPLY));
+        ops.add(createOperatorButton("Divide (÷)", OperatorType.DIVIDE));
+
+        return ops;
+    }
+
+    // Submit ug status area
+    private JComponent buildSubmitPanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBackground(Color.WHITE);
+
+        JButton submitButton = new JButton("Check Answer");
+        submitButton.setAlignmentX(Component.CENTER_ALIGNMENT);
+        submitButton.addActionListener(this::handleSubmit);
+        panel.add(submitButton);
+
+        panel.add(Box.createVerticalStrut(6));
+
+        statusLabel = new JLabel(" ", SwingConstants.CENTER);
+        statusLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        statusLabel.setForeground(Color.DARK_GRAY);
+        panel.add(statusLabel);
+
+        return panel;
+    }
+
+    // Info panel sa difficulty tiers
+    private JComponent buildInfoPanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBackground(Color.WHITE);
+        panel.setBorder(BorderFactory.createTitledBorder("Difficulty"));
+
+        panel.add(makeInfoRow("BEGINNER", "1-50"));
+        panel.add(makeInfoRow("INTERMEDIATE", "51-100"));
+        panel.add(makeInfoRow("ADVANCED", "101-200"));
+
+        return panel;
+    }
+
+    private JPanel makeInfoRow(String name, String range) {
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 2));
+        row.setBackground(Color.WHITE);
+        row.add(new JLabel(name));
+        row.add(new JLabel(range));
+        return row;
+    }
+
+    // Helper sa score cards
+    private JPanel wrapScoreCard(String title, JLabel value) {
+        JPanel card = new JPanel(new BorderLayout());
+        card.setBackground(Color.WHITE);
+        card.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY));
+
+        JLabel titleLabel = new JLabel(title, SwingConstants.CENTER);
+        titleLabel.setFont(titleLabel.getFont().deriveFont(Font.PLAIN, 12f));
+        card.add(titleLabel, BorderLayout.NORTH);
+
+        value.setHorizontalAlignment(SwingConstants.CENTER);
+        value.setFont(value.getFont().deriveFont(Font.BOLD, 20f));
+        card.add(value, BorderLayout.CENTER);
+
+        return card;
+    }
+
+    // Factory metod para sa number fields (editable o dili)
+    private JTextField createNumberField(boolean editable) {
+        JTextField field = new JTextField(5);
+        field.setHorizontalAlignment(SwingConstants.CENTER);
+        field.setEditable(editable);
+        field.setFont(field.getFont().deriveFont(Font.BOLD, 24f));
+        if (!editable) {
+            field.setBackground(Color.WHITE);
+            field.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY));
+        }
+        return field;
+    }
+
+    // Factory metod para sa score labels
+    private JLabel createScoreLabel(String text, Color color) {
+        JLabel label = new JLabel(text);
+        label.setFont(label.getFont().deriveFont(Font.BOLD, 16f));
+        label.setForeground(color);
+        return label;
+    }
+
+    // Himo ug operator button ug i-track ang selection
+    private JButton createOperatorButton(String text, OperatorType type) {
+        JButton btn = new JButton(text);
+        btn.setBackground(Color.WHITE);
+        btn.addActionListener(e -> {
+            changeOperator(type);
+            updateOperatorButtons();
+        });
+        operatorButtons.add(btn);
+        return btn;
+    }
+
+    // Pag-highlight sa napiling operator button
+    private void updateOperatorButtons() {
+        for (JButton b : operatorButtons) {
+            boolean selected = b.getText().contains(currentOperator.symbol());
+            b.setBackground(selected ? new Color(230, 240, 255) : Color.WHITE);
+        }
+    }
+
+    // Pag-usab sa operator ug pag-generate sa pangutana
+    private void changeOperator(OperatorType type) {
+        if (type == null) return;
+        currentOperator = type;
+        operatorLabel.setText(type.symbol());
+        generateQuestion();
+    }
+
+    // Paghimo ug bag-ong pangutana gikan sa napiling operator
+    private void generateQuestion() {
+        Question question = currentOperator.createQuestion(random, currentLevel);
+        currentNum1 = question.operand1;
+        currentNum2 = question.operand2;
+        currentAnswer = question.answer;
+
+        num1Field.setText(String.valueOf(currentNum1));
+        num2Field.setText(String.valueOf(currentNum2));
+        answerField.setText("");
+        statusLabel.setText(" ");
+        updateOperatorButtons();
+        answerField.requestFocus();
+    }
+
+    // Pag-handle sa submit event
+    private void handleSubmit(ActionEvent e) {
+        checkAnswer();
+    }
+
+    // Pagsusi sa tubag ug pag-update sa score ug feedback
+    private void checkAnswer() {
+        String text = answerField.getText().trim();
+        if (text.isEmpty()) {
+            statusLabel.setForeground(new Color(180, 0, 0));
+            statusLabel.setText("Palihog isulat ang tubag.");
+            return;
+        }
+
+        try {
+            int userAnswer = Integer.parseInt(text);
+            if (userAnswer == currentAnswer) {
+                correct++;
+                currentLevel = correct;
+                statusLabel.setForeground(new Color(0, 128, 0));
+                statusLabel.setText("Sakto! Maayo ka.");
+            } else {
+                incorrect++;
+                statusLabel.setForeground(new Color(180, 0, 0));
+                statusLabel.setText("Sayop. Husto nga tubag: " + currentAnswer);
+            }
+            updateScoreLabels();
+            updateLevelLabel();
+            generateQuestion();
+        } catch (NumberFormatException ex) {
+            statusLabel.setForeground(new Color(180, 0, 0));
+            statusLabel.setText("Dili valid nga numero.");
+        }
+    }
+
+    // Pag-update sa score labels
+    private void updateScoreLabels() {
+        correctLabel.setText("Sakto: " + correct);
+        incorrectLabel.setText("Sayop: " + incorrect);
+    }
+
+    // Pagpakita sa bag-ong level text
+    private void updateLevelLabel() {
+        levelLabel.setText("Level " + currentLevel);
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() -> {
+            try {
+                UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+            } catch (Exception ignored) {
+            }
+            ArithmeticGame game = new ArithmeticGame();
+            game.setVisible(true);
+        });
+    }
+}
